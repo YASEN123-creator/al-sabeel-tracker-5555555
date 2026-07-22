@@ -427,7 +427,13 @@ function sanitizeData(value: unknown): SabeelBackupData {
 
   const taskIds = new Set(data.tasks.map((task) => task.id));
   for (const project of data.projects) {
-    if (project.parent_id && (!projectIds.has(project.parent_id) || project.parent_id === project.id)) {
+    // Older backups can contain projects whose folder was deleted before the
+    // backup was created. Keep the project and restore it as standalone rather
+    // than rejecting the entire backup or inventing a missing folder.
+    if (project.parent_id && !projectIds.has(project.parent_id)) {
+      project.parent_id = null;
+    }
+    if (project.parent_id === project.id) {
       throw new Error(`Invalid project parent reference: ${project.id}`);
     }
     const visited = new Set([project.id]);
