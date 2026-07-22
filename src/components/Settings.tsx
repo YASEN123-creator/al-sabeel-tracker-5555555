@@ -12,6 +12,7 @@ import { createBackup, downloadBackup, getBackupSummary, readBackupFile, saveSaf
 import type { UserSettings } from '@/lib/types';
 import type { SabeelBackup, ImportMode } from '@/lib/backup';
 import { useShallow } from '@/lib/useAppShallow';
+import { isSupabaseConfigured } from '@/lib/supabaseConfig';
 
 // Only bell (default) + custom sound upload
 
@@ -163,7 +164,7 @@ export default function Settings() {
     if (store.userId !== backupUserId) throw new Error(lang === 'ar' ? 'تغير الحساب أثناء تجهيز النسخة' : 'Account changed while preparing the backup');
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    const source = supabaseUrl && supabaseKey && supabaseKey.length > 50 && !supabaseUrl.includes('placeholder') && !supabaseKey.includes('placeholder')
+    const source = isSupabaseConfigured(supabaseUrl, supabaseKey)
       ? 'cloud' as const
       : 'offline' as const;
     return createBackup({
@@ -269,7 +270,7 @@ export default function Settings() {
       // Check if Supabase is configured
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-      const isConfigured = !!(supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder') && !supabaseKey.includes('placeholder') && supabaseKey.length > 50);
+      const isConfigured = isSupabaseConfigured(supabaseUrl, supabaseKey);
 
       if (!isConfigured) {
         throw new Error(t('link.cloudRequired'));

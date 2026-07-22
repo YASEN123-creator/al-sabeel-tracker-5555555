@@ -2,11 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Project, Task, Session, Goal, UserSettings, PrayerLog, PrayerLogPayload, PrayerStatus } from './types';
 import type { ImportMode, SabeelBackupData } from './backup';
 import { isArrayValue, isRecordValue, safeParseJsonResult, writeStorageJson, writeStorageText } from './storage';
+import { isSupabaseConfigured as hasSupabaseConfig } from './supabaseConfig';
 
 function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  return !!(url && key && !url.includes('placeholder') && !key.includes('placeholder') && key.length > 50);
+  return hasSupabaseConfig(url, key);
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { safeParseJsonResult } from './storage';
 import { useAppStore } from './store';
+import { isSupabaseConfigured as hasSupabaseConfig } from './supabaseConfig';
 
 interface OfflineUser {
   id: string;
@@ -20,7 +21,7 @@ function isOfflineUser(value: unknown): value is OfflineUser {
 function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-  return !!(url && key && !url.includes('placeholder') && !key.includes('placeholder') && key.length > 50);
+  return hasSupabaseConfig(url, key);
 }
 
 function generateUUID(): string {
