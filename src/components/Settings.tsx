@@ -6,7 +6,7 @@ import { Save, Bell, Timer, User, Clock, FolderKanban, CheckCircle2, Volume2, Vo
 import AudioTrimmer from './AudioTrimmer';
 import { useAppStore, withoutTrashedProjects } from '@/lib/store';
 import { useT } from '@/lib/i18n';
-import { fetchBackupCloudData, restoreCloudData, upsertSettings } from '@/lib/api';
+import { fetchBackupCloudData, prepareBackupDataForRestore, restoreCloudData, upsertSettings } from '@/lib/api';
 import { playAlarmSound } from '@/lib/useTimer';
 import { createBackup, downloadBackup, getBackupSummary, readBackupFile, saveSafetyBackup } from '@/lib/backup';
 import type { UserSettings } from '@/lib/types';
@@ -211,16 +211,17 @@ export default function Settings() {
       saveSafetyBackup(restoreUserId, await createCurrentBackup());
       if (useAppStore.getState().userId !== restoreUserId) throw new Error(lang === 'ar' ? 'تغير الحساب أثناء الاستعادة' : 'Account changed during restore');
 
-      const cloudResult = await restoreCloudData(restoreUserId, previewBackup.data, importMode);
+      const restoreData = await prepareBackupDataForRestore(restoreUserId, previewBackup.data);
+      const cloudResult = await restoreCloudData(restoreUserId, restoreData, importMode);
       if (useAppStore.getState().userId !== restoreUserId) throw new Error(lang === 'ar' ? 'تغير الحساب أثناء الاستعادة' : 'Account changed during restore');
       const browserFailures = useAppStore.getState().restoreBrowserData({
-        deletedProjects: previewBackup.data.deletedProjects,
-        projectRatings: previewBackup.data.projectRatings,
-        projectPlans: previewBackup.data.projectPlans,
-        sessionPlans: previewBackup.data.sessionPlans,
-        libraryResources: previewBackup.data.libraryResources,
-        videoItems: previewBackup.data.videoItems,
-        notifications: previewBackup.data.notifications,
+        deletedProjects: restoreData.deletedProjects,
+        projectRatings: restoreData.projectRatings,
+        projectPlans: restoreData.projectPlans,
+        sessionPlans: restoreData.sessionPlans,
+        libraryResources: restoreData.libraryResources,
+        videoItems: restoreData.videoItems,
+        notifications: restoreData.notifications,
       }, importMode);
 
       const current = useAppStore.getState();

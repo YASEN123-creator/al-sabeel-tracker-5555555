@@ -27,6 +27,7 @@ import DateRangePicker from '@/components/DateRangePicker';
 import { useAppStore } from '@/lib/store';
 import { useShallow } from '@/lib/useAppShallow';
 import { parseLocalDate, toLocalDateKey } from '@/lib/localDate';
+import type { Session } from '@/lib/types';
 
 type ChartKind = 'area' | 'line' | 'bar';
 
@@ -34,6 +35,15 @@ function lastSevenDays() {
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
   return { start: toLocalDateKey(start), end: toLocalDateKey(today) };
+}
+
+function initialSessionRange(sessions: Session[]) {
+  const recent = lastSevenDays();
+  if (sessions.some((session) => session.session_date >= recent.start && session.session_date <= recent.end)) {
+    return recent;
+  }
+  const dates = sessions.map((session) => session.session_date).sort();
+  return dates.length ? { start: dates[0], end: dates[dates.length - 1] } : recent;
 }
 
 export default function GraphAnalytics() {
@@ -49,7 +59,7 @@ export default function GraphAnalytics() {
   })));
   const lang = language || 'ar';
   const isArabic = lang === 'ar';
-  const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>(lastSevenDays);
+  const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>(() => initialSessionRange(sessions));
   const [projectId, setProjectId] = useState('all');
   const [taskId, setTaskId] = useState('all');
   const [sessionType, setSessionType] = useState('all');

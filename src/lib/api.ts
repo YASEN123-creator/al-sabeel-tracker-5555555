@@ -848,6 +848,113 @@ function projectsInParentFirstOrder(projects: Project[]): Project[] {
   return [...projects].sort((left, right) => depth(left) - depth(right));
 }
 
+function restoreErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (isRecordValue(error) && typeof error.message === 'string') return error.message;
+  return String(error);
+}
+
+async function accountScopedRestoreId(userId: string, domain: string, sourceId: string): Promise<string> {
+  if (!globalThis.crypto?.subtle) throw new Error('Secure ID generation is unavailable in this browser');
+  const input = new TextEncoder().encode(`sabeel-restore:${domain}:${userId}:${sourceId}`);
+  const bytes = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', input)).slice(0, 16);
+  // RFC 4122 variant with a deterministic, name-based UUID shape.
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+async function fetchOwnedRecordIds(table: string, userId: string, ids: string[]): Promise<Set<string>> {
+  const owned = new Set<string>();
+  if (ids.length === 0) return owned;
+  const supabase = await getSupabase();
+  const uniqueIds = Array.from(new Set(ids));
+  for (let index = 0; index < uniqueIds.length; index += 500) {
+    const { data, error } = await supabase
+      .from(table)
+      .select('id')
+      .eq('user_id', userId)
+      .in('id', uniqueIds.slice(index, index + 500));
+    if (error) throw error;
+    for (const row of (data || []) as Array<{ id?: unknown }>) {
+      if (typeof row.id === 'string') owned.add(row.id);
+    }
+  }
+  return owned;
+}
+
+async function createRestoreIdMap(
+  userId: string,
+  domain: string,
+  ids: string[],
+  ownedIds: Set<string>,
+): Promise<Record<string, string>> {
+  const entries = await Promise.all(Array.from(new Set(ids)).map(async (id): Promise<[string, string]> => [
+    id,
+    ownedIds.has(id) ? id : await accountScopedRestoreId(userId, domain, id),
+  ]));
+  return Object.fromEntries(entries);
+}
+
+function remapNumberRecord(values: Record<string, number>, idMap: Record<string, string>): Record<string, number> {
+  return Object.fromEntries(Object.entries(values).map(([id, value]) => [idMap[id] || id, value]));
+}
+
+/**
+ * Scope imported record IDs to the destination account. PostgreSQL UUID primary
+ * keys are global, so the same backup cannot otherwise be restored into a
+ * second account even though RLS correctly hides the first account's rows.
+ * Existing IDs already owned by this account are preserved; unseen IDs are
+ * deterministically remapped so repeated imports stay idempotent.
+ */
+export async function prepareBackupDataForRestore(userId: string, data: SabeelBackupData): Promise<SabeelBackupData> {
+  if (!isValidUserId(userId) || !isSupabaseConfigured()) return data;
+
+  const [ownedProjects, ownedTasks, ownedSessions, ownedGoals] = await Promise.all([
+    fetchOwnedRecordIds('projects', userId, data.projects.map((record) => record.id)),
+    fetchOwnedRecordIds('tasks', userId, data.tasks.map((record) => record.id)),
+    fetchOwnedRecordIds('sessions', userId, data.sessions.map((record) => record.id)),
+    fetchOwnedRecordIds('goals', userId, data.goals.map((record) => record.id)),
+  ]);
+  const [projectIds, taskIds, sessionIds, goalIds] = await Promise.all([
+    createRestoreIdMap(userId, 'projects', data.projects.map((record) => record.id), ownedProjects),
+    createRestoreIdMap(userId, 'tasks', data.tasks.map((record) => record.id), ownedTasks),
+    createRestoreIdMap(userId, 'sessions', data.sessions.map((record) => record.id), ownedSessions),
+    createRestoreIdMap(userId, 'goals', data.goals.map((record) => record.id), ownedGoals),
+  ]);
+  const remapProject = (project: Project): Project => ({
+    ...project,
+    id: projectIds[project.id] || project.id,
+    parent_id: project.parent_id ? projectIds[project.parent_id] || null : null,
+  });
+
+  return {
+    ...data,
+    projects: data.projects.map(remapProject),
+    tasks: data.tasks.map((task) => ({
+      ...task,
+      id: taskIds[task.id] || task.id,
+      project_id: task.project_id ? projectIds[task.project_id] || null : null,
+    })),
+    sessions: data.sessions.map((session) => ({
+      ...session,
+      id: sessionIds[session.id] || session.id,
+      project_id: session.project_id ? projectIds[session.project_id] || null : null,
+      task_id: session.task_id ? taskIds[session.task_id] || null : null,
+    })),
+    goals: data.goals.map((goal) => ({
+      ...goal,
+      id: goalIds[goal.id] || goal.id,
+      project_id: goal.project_id ? projectIds[goal.project_id] || null : null,
+    })),
+    deletedProjects: data.deletedProjects.map((item) => ({ ...item, project: remapProject(item.project) })),
+    projectRatings: remapNumberRecord(data.projectRatings, projectIds),
+    projectPlans: remapNumberRecord(data.projectPlans, projectIds),
+    sessionPlans: remapNumberRecord(data.sessionPlans, sessionIds),
+  };
+}
+
 async function upsertBatches(table: string, records: unknown[], onConflict = 'id'): Promise<void> {
   if (records.length === 0) return;
   const supabase = await getSupabase();
@@ -925,7 +1032,7 @@ export async function restoreCloudData(
       await operation();
       domains.push({ domain, success: true });
     } catch (error) {
-      domains.push({ domain, success: false, message: error instanceof Error ? error.message : String(error) });
+      domains.push({ domain, success: false, message: restoreErrorMessage(error) });
     }
   };
 
@@ -980,7 +1087,7 @@ export async function restoreCloudData(
   } catch (error) {
     const failed = domains.filter((domain) => !domain.success).map((domain) => domain.domain).join(', ');
     const status = failed ? `Failed domains: ${failed}. ` : '';
-    throw new Error(`${status}Restore writes finished, but refreshed data could not be loaded: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`${status}Restore writes finished, but refreshed data could not be loaded: ${restoreErrorMessage(error)}`);
   }
   return { success: domains.every((domain) => domain.success), domains, data: restored };
 }
