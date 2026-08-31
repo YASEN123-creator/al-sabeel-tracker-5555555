@@ -9,6 +9,7 @@ const translations: Record<Lang, Record<string, string>> = {
     // App
     'app.title': 'السبيل',
     'app.subtitle': 'إدارة وقتك وأنجز مهامك بكفاءة',
+    'common.loading': 'جاري التنفيذ...',
 
     // Auth
     'auth.guest': 'دخول سريع',
@@ -641,6 +642,7 @@ const translations: Record<Lang, Record<string, string>> = {
     // App
     'app.title': 'Sabeel',
     'app.subtitle': 'Manage your time and accomplish tasks efficiently',
+    'common.loading': 'Working...',
 
     // Auth
     'auth.guest': 'Quick Login',

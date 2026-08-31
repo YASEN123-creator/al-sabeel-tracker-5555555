@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Activity, ArrowUpDown, CheckCircle2, Circle, Edit3, Folder, FolderOpen, LayoutGrid, List, MoreHorizontal, Plus, RotateCcw, Search, SlidersHorizontal, Star, Tags, Timer, Trash2, X } from 'lucide-react';
+import { Activity, ArrowUpDown, CheckCircle2, Circle, Edit3, Folder, FolderInput, FolderOpen, LayoutGrid, List, MoreHorizontal, Plus, RotateCcw, Search, SlidersHorizontal, Star, Tags, Timer, Trash2, X } from 'lucide-react';
 import { useAppStore, withoutTrashedProjects } from '@/lib/store';
 import { createProject, createSession, deleteProject, fetchGoals, fetchProjectsFresh, fetchSessions, fetchTasks, updateProject, updateTask } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -30,6 +30,8 @@ const copy = {
     color: 'اللون', hours: 'الساعات', minutes: 'الدقائق', date: 'التاريخ', saveTime: 'حفظ الوقت',
     taskPending: 'مهام معلقة', taskDone: 'مهام مكتملة', trash: 'المهملات', emptyTrash: 'إفراغ المهملات',
     restore: 'استعادة', permanentDelete: 'حذف نهائي', deletedAt: 'تم الحذف', addProjectHere: 'إضافة مشروع هنا',
+    addExisting: 'إضافة مشاريع موجودة', moveTitle: 'إضافة مشاريع موجودة للمجلد', moveHint: 'اختر مشروعًا أو أكثر لنقلهم إلى هذا المجلد',
+    searchExisting: 'ابحث في المشاريع الموجودة...', noMoveCandidates: 'لا توجد مشاريع أخرى متاحة', moveSelected: 'نقل المشاريع المحددة', selectedCount: 'محدد', currentFolder: 'المجلد الحالي',
   },
   en: {
     title: 'Projects', subtitle: 'Organize your work and follow progress with clarity', search: 'Search projects...',
@@ -48,6 +50,8 @@ const copy = {
     color: 'Color', hours: 'Hours', minutes: 'Minutes', date: 'Date', saveTime: 'Save time',
     taskPending: 'Pending tasks', taskDone: 'Completed tasks', trash: 'Trash', emptyTrash: 'Empty trash',
     restore: 'Restore', permanentDelete: 'Delete permanently', deletedAt: 'Deleted', addProjectHere: 'Add project here',
+    addExisting: 'Add existing projects', moveTitle: 'Add existing projects to folder', moveHint: 'Select one or more projects to move into this folder',
+    searchExisting: 'Search existing projects...', noMoveCandidates: 'No other projects available', moveSelected: 'Move selected projects', selectedCount: 'selected', currentFolder: 'Current folder',
   },
 } as const;
 
@@ -77,8 +81,13 @@ export default function Projects() {
   const [showModal, setShowModal] = useState(false);
   const [showTimeModal, setShowTimeModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [detailProject, setDetailProject] = useState<Project | null>(null);
+  const [moveTargetFolder, setMoveTargetFolder] = useState<Project | null>(null);
+  const [moveProjectIds, setMoveProjectIds] = useState<string[]>([]);
+  const [moveSearch, setMoveSearch] = useState('');
+  const [moveBusy, setMoveBusy] = useState(false);
   const [timeProjectId, setTimeProjectId] = useState<string | null>(null);
   const [timeProjectName, setTimeProjectName] = useState('');
   const [name, setName] = useState('');
@@ -105,6 +114,13 @@ export default function Projects() {
   const folderIds = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders]);
   const availableFolders = useMemo(() => folders.filter((folder) => folder.id !== editingProject?.id), [folders, editingProject]);
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) || null;
+  const moveCandidates = useMemo(() => {
+    const query = moveSearch.trim().toLocaleLowerCase();
+    return projects
+      .filter((project) => !project.is_folder && project.parent_id !== moveTargetFolder?.id)
+      .filter((project) => !query || project.name.toLocaleLowerCase().includes(query))
+      .sort((left, right) => left.name.localeCompare(right.name, lang === 'ar' ? 'ar' : 'en'));
+  }, [projects, moveTargetFolder, moveSearch, lang]);
 
   const statsFor = (project: Project) => {
     const projectTasks = tasks.filter((task) => task.project_id === project.id);
@@ -163,6 +179,35 @@ export default function Projects() {
   const openEdit = (project: Project) => {
     setEditingProject(project); setName(project.name); setDescription(project.description || ''); setColor(project.color || COLORS[0]);
     setIsFolder(project.is_folder); setParentId(project.parent_id); setFormError(''); setPlannedHours(projectPlans[project.id] ? String(projectPlans[project.id] / 60) : ''); setShowModal(true);
+  };
+  const openMoveProjects = (folder: Project) => {
+    setMoveTargetFolder(folder); setMoveProjectIds([]); setMoveSearch(''); setShowMoveModal(true);
+  };
+  const toggleMoveProject = (projectId: string) => {
+    setMoveProjectIds((current) => current.includes(projectId) ? current.filter((id) => id !== projectId) : [...current, projectId]);
+  };
+  const handleMoveProjects = async () => {
+    if (!moveTargetFolder || moveProjectIds.length === 0 || moveBusy) return;
+    setMoveBusy(true);
+    const userId = useAppStore.getState().userId || '';
+    const targets = projects.filter((project) => moveProjectIds.includes(project.id) && !project.is_folder);
+    const results = await Promise.allSettled(targets.map((project) => updateProject(project.id, userId, { parent_id: moveTargetFolder.id })));
+    if (useAppStore.getState().userId !== userId) { setMoveBusy(false); return; }
+    const moved: Project[] = [];
+    const failedIds: string[] = [];
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') moved.push(result.value);
+      else failedIds.push(targets[index].id);
+    });
+    moved.forEach(updateProjectInStore);
+    setMoveProjectIds(failedIds);
+    if (failedIds.length === 0) {
+      setShowMoveModal(false); setMoveTargetFolder(null); setMoveSearch('');
+      addToast(lang === 'ar' ? `تم نقل ${moved.length} مشروع إلى ${moveTargetFolder.name}` : `Moved ${moved.length} project(s) to ${moveTargetFolder.name}`, 'success');
+    } else {
+      addToast(lang === 'ar' ? `تم نقل ${moved.length} وتعذر نقل ${failedIds.length}` : `Moved ${moved.length}; ${failedIds.length} failed`, 'error');
+    }
+    setMoveBusy(false);
   };
   const openDetail = (project: Project) => { setDetailProject(project); setShowDetailModal(true); };
   const openAddTime = (project: Project) => {
@@ -369,13 +414,14 @@ export default function Projects() {
                   <button type="button" onClick={() => setSelectedFolderId(folder.id)} aria-label={`${c.openFolder}: ${folder.name}`} className="w-full p-4 text-start">
                     <div className="mb-4 flex items-start justify-between gap-2">
                       <div className="grid h-10 w-10 place-items-center rounded-xl" style={{ backgroundColor: `${folder.color || '#8b5cf6'}18`, color: folder.color || '#8b5cf6' }}><Folder size={20} /></div>
-                      <span className="me-20 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-700 dark:text-slate-300">{stats.children.length} {c.projects}</span>
+                      <span className="me-28 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-500 dark:bg-slate-700 dark:text-slate-300">{stats.children.length} {c.projects}</span>
                     </div>
                     <h3 className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{folder.name}</h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{minutesLabel(stats.totalMinutes)} · {stats.progress}%</p>
                     <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700"><div className="h-full rounded-full" style={{ width: `${stats.progress}%`, backgroundColor: folder.color || '#8b5cf6' }} /></div>
                   </button>
                   <div className="absolute end-3 top-3 flex items-center gap-1">
+                    <button type="button" onClick={() => openMoveProjects(folder)} aria-label={`${c.addExisting}: ${folder.name}`} title={c.addExisting} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-emerald-500/10"><FolderInput size={14} /></button>
                     <button type="button" onClick={() => openEdit(folder)} aria-label={`${c.edit}: ${folder.name}`} title={c.edit} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-violet-500/10"><Edit3 size={14} /></button>
                     <button type="button" onClick={() => handleDelete(folder.id)} aria-label={`${c.delete}: ${folder.name}`} title={c.delete} className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-red-500/10"><Trash2 size={14} /></button>
                   </div>
@@ -386,11 +432,13 @@ export default function Projects() {
         </section>
       )}
 
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-5"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><div className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">{selectedFolder ? <FolderOpen size={18} /> : <LayoutGrid size={17} />}</div><div><h2 className="text-base font-bold text-slate-800 dark:text-slate-100">{selectedFolder ? selectedFolder.name : c.standaloneProjects}</h2><p className="text-xs text-slate-400">{visibleProjects.length} {c.projects}</p></div></div>{selectedFolder && <button type="button" onClick={() => openCreateProject(selectedFolder.id)} className="flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-200"><Plus size={14} />{c.addProjectHere}</button>}</div>
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800 sm:p-5"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><div className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-300">{selectedFolder ? <FolderOpen size={18} /> : <LayoutGrid size={17} />}</div><div><h2 className="text-base font-bold text-slate-800 dark:text-slate-100">{selectedFolder ? selectedFolder.name : c.standaloneProjects}</h2><p className="text-xs text-slate-400">{visibleProjects.length} {c.projects}</p></div></div>{selectedFolder && <div className="flex flex-wrap gap-2"><button type="button" onClick={() => openMoveProjects(selectedFolder)} className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-200"><FolderInput size={14} />{c.addExisting}</button><button type="button" onClick={() => openCreateProject(selectedFolder.id)} className="flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-200"><Plus size={14} />{c.addProjectHere}</button></div>}</div>
         {visibleProjects.length ? <div className={viewMode === 'grid' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3' : 'space-y-3'}>{visibleProjects.map(projectCard)}</div> : <div className="py-14 text-center"><FolderOpen size={40} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" /><h3 className="font-bold text-slate-600 dark:text-slate-300">{selectedFolder ? c.emptyFolder : c.noProjects}</h3><p className="mt-1 text-sm text-slate-400">{c.noProjectsHint}</p><button type="button" onClick={() => openCreateProject(selectedFolderId)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white"><Plus size={15} />{c.newProject}</button></div>}
       </section>
 
       {deletedProjects.length > 0 && <section className="mt-7"><div className="mb-3 flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-200"><Trash2 size={16} className="text-red-500" />{c.trash}<span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] text-red-600 dark:bg-red-500/10 dark:text-red-300">{deletedProjects.length}</span></h2><button type="button" onClick={handleEmptyTrash} disabled={trashBusy} className="text-xs font-semibold text-red-500 disabled:opacity-50">{c.emptyTrash}</button></div><div className="space-y-2">{deletedProjects.map(({ project, deletedAt }) => <div key={project.id} className="flex items-center justify-between gap-3 rounded-xl border border-red-100 bg-red-50/50 p-3 dark:border-red-500/20 dark:bg-red-500/5"><div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{project.name}</p><p className="text-[11px] text-slate-400">{c.deletedAt}: {dateLabel(deletedAt)}</p></div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => handleRestore(project.id)} className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white"><RotateCcw size={12} className="inline" /> {c.restore}</button><button type="button" onClick={() => handlePermanentDelete(project.id)} title={c.permanentDelete} className="rounded-lg p-1.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10"><Trash2 size={15} /></button></div></div>)}</div></section>}
+
+      {showMoveModal && moveTargetFolder && <div onMouseDown={(event) => event.target === event.currentTarget && !moveBusy && setShowMoveModal(false)} className="global-modal-overlay"><div role="dialog" aria-modal="true" aria-labelledby="move-projects-title" className="global-modal-panel w-full max-w-lg p-6"><div className="mb-5 flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300"><FolderInput size={21} /></div><div className="min-w-0"><h2 id="move-projects-title" className="text-lg font-bold text-slate-800 dark:text-slate-100">{c.moveTitle}</h2><p className="mt-1 truncate text-sm font-semibold text-violet-600 dark:text-violet-300">{moveTargetFolder.name}</p><p className="mt-1 text-xs text-slate-400">{c.moveHint}</p></div></div><button type="button" disabled={moveBusy} onClick={() => setShowMoveModal(false)} aria-label={c.close} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-50 dark:hover:bg-slate-700"><X size={18} /></button></div><label className="relative block"><Search size={16} className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-slate-400" /><input autoFocus value={moveSearch} onChange={(event) => setMoveSearch(event.target.value)} placeholder={c.searchExisting} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pe-10 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800" /></label><div className="mt-3 max-h-80 space-y-2 overflow-y-auto pe-1">{moveCandidates.length ? moveCandidates.map((project) => { const currentFolder = folders.find((folder) => folder.id === project.parent_id); const checked = moveProjectIds.includes(project.id); return <label key={project.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition ${checked ? 'border-violet-400 bg-violet-50 ring-2 ring-violet-500/10 dark:border-violet-500 dark:bg-violet-500/10' : 'border-slate-200 hover:border-violet-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'}`}><input type="checkbox" checked={checked} onChange={() => toggleMoveProject(project.id)} className="h-4 w-4 rounded border-slate-300 accent-violet-600" /><i className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: project.color || '#64748b' }} /><span className="min-w-0 flex-1"><b className="block truncate text-sm text-slate-700 dark:text-slate-200">{project.name}</b><span className="mt-0.5 block truncate text-[11px] text-slate-400">{c.currentFolder}: {currentFolder?.name || c.noFolder}</span></span></label>; }) : <div className="rounded-xl border border-dashed border-slate-200 py-10 text-center text-sm text-slate-400 dark:border-slate-700"><FolderOpen size={28} className="mx-auto mb-2 opacity-60" />{c.noMoveCandidates}</div>}</div><div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4 dark:border-slate-700"><button type="button" disabled={moveBusy || moveProjectIds.length === 0} onClick={handleMoveProjects} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-violet-600 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"><FolderInput size={16} />{moveBusy ? t('common.loading') : c.moveSelected} {moveProjectIds.length > 0 && `(${moveProjectIds.length})`}</button><button type="button" disabled={moveBusy} onClick={() => setShowMoveModal(false)} className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-600 disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200">{c.cancel}</button></div></div></div>}
 
       {showModal && <div onMouseDown={(event) => event.target === event.currentTarget && setShowModal(false)} className="global-modal-overlay"><div role="dialog" aria-modal="true" className="global-modal-panel max-w-md p-6"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">{editingProject ? (editingProject.is_folder ? t('proj.editFolder') : c.edit) : isFolder ? c.newFolder : c.newProject}</h2><button type="button" onClick={() => setShowModal(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"><X size={18} /></button></div><form onSubmit={handleSubmit} className="space-y-4"><label className="block text-sm font-medium text-slate-700 dark:text-slate-200">{isFolder ? c.folderName : c.name}<input autoFocus value={name} onChange={(event) => { setName(event.target.value); setFormError(''); }} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-700" /></label>{formError && <p className="text-xs text-red-500">{formError}</p>}<label className="block text-sm font-medium text-slate-700 dark:text-slate-200">{c.description}<textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400 dark:border-slate-600 dark:bg-slate-700" /></label>{!isFolder && availableFolders.length > 0 && <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">{c.inside}<select value={parentId || ''} onChange={(event) => setParentId(event.target.value || null)} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none dark:border-slate-600 dark:bg-slate-700"><option value="">{c.noFolder}</option>{availableFolders.map((folder) => <option key={folder.id} value={folder.id}>{folder.name}</option>)}</select></label>} {!isFolder && <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">{c.plannedTime}<div className="relative mt-1.5"><input type="number" min="0" step="0.5" value={plannedHours} onChange={(event) => setPlannedHours(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 pe-16 text-sm outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-700" /><span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{c.hours}</span></div></label>}<div><p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">{c.color}</p><div className="flex gap-2">{COLORS.map((item) => <button key={item} type="button" aria-label={item} onClick={() => setColor(item)} className={`h-7 w-7 rounded-full ${color === item ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-slate-800' : ''}`} style={{ backgroundColor: item }} />)}</div></div><div className="flex gap-3 pt-1"><button type="submit" className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-bold text-white">{c.save}</button><button type="button" onClick={() => setShowModal(false)} className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-200">{c.cancel}</button></div></form></div></div>}
 
