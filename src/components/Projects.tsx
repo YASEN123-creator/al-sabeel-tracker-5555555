@@ -102,6 +102,7 @@ export default function Projects() {
   const setPendingCreate = useAppStore((state) => state.setPendingCreate);
 
   const folders = useMemo(() => projects.filter((project) => project.is_folder && !project.parent_id), [projects]);
+  const folderIds = useMemo(() => new Set(folders.map((folder) => folder.id)), [folders]);
   const availableFolders = useMemo(() => folders.filter((folder) => folder.id !== editingProject?.id), [folders, editingProject]);
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) || null;
 
@@ -135,9 +136,9 @@ export default function Projects() {
     const query = searchQuery.trim().toLowerCase();
     let result = projects.filter((project) => !project.is_folder);
     if (selectedFolderId) result = result.filter((project) => project.parent_id === selectedFolderId);
-    else if (projectFilter === 'standalone') result = result.filter((project) => !project.parent_id);
-    else if (projectFilter === 'inFolder') result = result.filter((project) => Boolean(project.parent_id));
-    else result = result.filter((project) => !project.parent_id);
+    else if (projectFilter === 'standalone') result = result.filter((project) => !project.parent_id || !folderIds.has(project.parent_id));
+    else if (projectFilter === 'inFolder') result = result.filter((project) => Boolean(project.parent_id && folderIds.has(project.parent_id)));
+    else result = result.filter((project) => !project.parent_id || !folderIds.has(project.parent_id));
     if (query) result = result.filter((project) => `${project.name} ${project.description || ''}`.toLowerCase().includes(query));
     return [...result].sort((left, right) => {
       if (sortBy === 'name') return left.name.localeCompare(right.name, lang === 'ar' ? 'ar' : 'en');
@@ -147,7 +148,7 @@ export default function Projects() {
     });
   // Derived presentation values only; source records remain unchanged.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, tasks, sessions, selectedFolderId, projectFilter, searchQuery, sortBy, lang]);
+  }, [projects, tasks, sessions, selectedFolderId, projectFilter, searchQuery, sortBy, lang, folderIds]);
 
   const visibleFolders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();

@@ -427,14 +427,15 @@ function sanitizeData(value: unknown): SabeelBackupData {
 
   const taskIds = new Set(data.tasks.map((task) => task.id));
   for (const project of data.projects) {
-    // Older backups can contain projects whose folder was deleted before the
-    // backup was created. Keep the project and restore it as standalone rather
-    // than rejecting the entire backup or inventing a missing folder.
-    if (project.parent_id && !projectIds.has(project.parent_id)) {
+    // The current UI supports one folder level. Old exports can reference a
+    // deleted project, a non-folder record, or a nested folder as the parent;
+    // those records used to import but then disappear from the Projects page.
+    // Restore unsupported relationships as standalone projects/root folders.
+    const parent = project.parent_id ? projectById.get(project.parent_id) : null;
+    if (project.is_folder) {
       project.parent_id = null;
-    }
-    if (project.parent_id === project.id) {
-      throw new Error(`Invalid project parent reference: ${project.id}`);
+    } else if (project.parent_id && (!parent || !parent.is_folder || Boolean(parent.parent_id) || project.parent_id === project.id)) {
+      project.parent_id = null;
     }
     const visited = new Set([project.id]);
     let parentId = project.parent_id;

@@ -11,6 +11,7 @@ import { SkeletonChart } from '@/components/Skeleton';
 import { useShallow } from '@/lib/useAppShallow';
 import { toLocalDateKey } from '@/lib/localDate';
 import DateRangePicker from '@/components/DateRangePicker';
+import ProjectPicker from '@/components/ProjectPicker';
 
 // ── Live Clock Component ─────────────────────────────────────────────────
 
@@ -417,8 +418,6 @@ export default function Sessions() {
     });
   };
 
-  const actualProjects = projects.filter(p => !p.is_folder);
-
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="w-full">
       <header className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -429,7 +428,7 @@ export default function Sessions() {
       <div className="mb-5 grid gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 xl:grid-cols-4">
         <select value={filterType} onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }} aria-label={c.allTypes} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="all">{c.allTypes}</option><option value="completed">{c.completed}</option><option value="active">{c.active}</option></select>
         <select value={filterTask} onChange={(e) => { setFilterTask(e.target.value); setCurrentPage(1); }} aria-label={c.allTasks} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="all">{c.allTasks}</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select>
-        <select value={filterProject} onChange={(e) => { setFilterProject(e.target.value); setCurrentPage(1); }} aria-label={t('sess.allProjects')} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="all">{t('sess.allProjects')}</option>{actualProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+        <ProjectPicker projects={projects} value={filterProject} onChange={(nextValue) => { setFilterProject(nextValue); setCurrentPage(1); }} language={lang} placeholder={t('sess.allProjects')} ariaLabel={t('sess.allProjects')} specialOption={{ value: 'all', label: t('sess.allProjects') }} className="h-11" />
         <DateRangePicker value={dateRange} language={lang} onApply={(range) => { setDateRange(range); setCurrentPage(1); }} />
       </div>
 
@@ -439,7 +438,7 @@ export default function Sessions() {
           <div className="py-5 text-center"><p className="font-mono text-5xl font-extrabold tracking-[0.08em] text-slate-900 dark:text-white">{formatTime(timerSeconds)}</p><span className="mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"><i className={`h-2 w-2 rounded-full ${timerState === 'running' ? 'animate-pulse bg-emerald-500' : timerState === 'paused' ? 'bg-amber-500' : 'bg-slate-400'}`} />{statusLabel}</span></div>
           <AnimatePresence>{showTimerSettings && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 overflow-hidden rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><div className="flex flex-wrap justify-center gap-4"><div className="flex items-center gap-2"><button onClick={() => changeWorkDuration(-5)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Minus size={14} /></button><span className="text-xs font-bold">{t('sess.workDuration')} {workMin}</span><button onClick={() => changeWorkDuration(5)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Plus size={14} /></button></div><div className="flex items-center gap-2"><button onClick={() => changeBreakDuration(-1)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Minus size={14} /></button><span className="text-xs font-bold">{t('sess.breakDuration')} {breakMin}</span><button onClick={() => changeBreakDuration(1)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Plus size={14} /></button></div></div></motion.div>}</AnimatePresence>
           <button onClick={() => timerState === 'running' || timerState === 'break' ? useAppStore.getState().pauseTimer?.() : timerState === 'paused' ? useAppStore.getState().resumeTimer?.() : useAppStore.getState().startTimer?.()} className="mx-auto flex h-11 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800 focus-visible:ring-4 focus-visible:ring-blue-500/25 dark:bg-blue-600">{timerState === 'running' || timerState === 'break' ? <Pause size={18} /> : <Play size={18} />}{timerState === 'running' || timerState === 'break' ? c.pause : timerState === 'paused' ? c.resume : c.start}</button>
-          <div className="mt-4 grid grid-cols-2 gap-2"><select value={activeProjectId || ''} onChange={(e) => setActiveProjectId(e.target.value || null)} className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="">{t('sess.selectProject')}</option>{actualProjects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select><select value={activeTaskId || ''} onChange={(e) => setActiveTaskId(e.target.value || null)} className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="">{t('sess.selectTask')}</option>{tasks.filter((task) => !task.is_completed).map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></div>
+          <div className="mt-4 grid grid-cols-2 gap-2"><ProjectPicker projects={projects} value={activeProjectId || ''} onChange={(nextValue) => setActiveProjectId(nextValue || null)} language={lang} placeholder={t('sess.selectProject')} ariaLabel={t('sess.selectProject')} specialOption={{ value: '', label: t('common.noProject') }} className="h-10" /><select value={activeTaskId || ''} onChange={(e) => setActiveTaskId(e.target.value || null)} className="h-10 min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-xs dark:border-slate-700 dark:bg-slate-950"><option value="">{t('sess.selectTask')}</option>{tasks.filter((task) => !task.is_completed).map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></div>
           <div className="mt-3 flex justify-center gap-2"><button onClick={() => useAppStore.getState().skipTimer?.()} aria-label={t('sess.skip')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><SkipForward size={16} /></button></div>
         </section>}
 
@@ -475,10 +474,7 @@ export default function Sessions() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">{t('sess.selectProject')}</label>
-                  <select value={editProjectId || ''} onChange={(e) => setEditProjectId(e.target.value || null)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-700 focus:outline-none text-slate-800 dark:text-slate-100">
-                    <option value="">{t('common.noProject')}</option>
-                    {actualProjects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                  </select>
+                  <ProjectPicker projects={projects} value={editProjectId || ''} onChange={(nextValue) => setEditProjectId(nextValue || null)} language={lang} placeholder={t('sess.selectProject')} ariaLabel={t('sess.selectProject')} specialOption={{ value: '', label: t('common.noProject') }} className="h-11" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">{t('sess.date')}</label>
@@ -524,10 +520,7 @@ export default function Sessions() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">{t('sess.selectProject')}</label>
-                  <select value={addProjectId || ''} onChange={(e) => setAddProjectId(e.target.value || null)} className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-700 focus:outline-none text-slate-800 dark:text-slate-100">
-                    <option value="">{t('common.noProject')}</option>
-                    {actualProjects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
-                  </select>
+                  <ProjectPicker projects={projects} value={addProjectId || ''} onChange={(nextValue) => setAddProjectId(nextValue || null)} language={lang} placeholder={t('sess.selectProject')} ariaLabel={t('sess.selectProject')} specialOption={{ value: '', label: t('common.noProject') }} className="h-11" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">{t('sess.taskName')}</label>
