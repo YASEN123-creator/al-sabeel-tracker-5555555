@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { safeParseJsonResult } from './storage';
 import { useAppStore } from './store';
+import { isLocalDemoRequested, LOCAL_DEMO_USER_ID } from './demoMode';
 import { isSupabaseConfigured as hasSupabaseConfig } from './supabaseConfig';
 
 interface OfflineUser {
@@ -82,28 +83,35 @@ export function useAuth() {
       queueMicrotask(() => {
         if (!active) return;
         try {
-          const savedUser = localStorage.getItem('sabeel_offline_user');
-          const parseResult = safeParseJsonResult<OfflineUser | null>(savedUser, null, (value) => value === null || isOfflineUser(value));
-          const parsed = parseResult.value;
-          if (parsed) {
-            const fakeUser = {
-              id: parsed.id, email: parsed.email || null,
-              aud: 'authenticated', role: 'authenticated',
-              app_metadata: {}, user_metadata: { name: parsed.name || 'Guest' },
-              created_at: parsed.created_at || new Date().toISOString(),
-            } as User;
-            commitAuthUser(fakeUser);
+          if (isLocalDemoRequested()) {
+            commitAuthUser({
+              id: LOCAL_DEMO_USER_ID, email: null, aud: 'authenticated', role: 'authenticated',
+              app_metadata: {}, user_metadata: { name: 'Demo' }, created_at: new Date().toISOString(),
+            } as User);
           } else {
-            const newUserId = generateUUID();
-            const newUser = { id: newUserId, email: null, created_at: new Date().toISOString() };
-            // Do not overwrite a corrupt saved identity merely to recover startup.
-            if (savedUser === null) localStorage.setItem('sabeel_offline_user', JSON.stringify(newUser));
-            const fakeUser = {
-              id: newUserId, email: null, aud: 'authenticated', role: 'authenticated',
-              app_metadata: {}, user_metadata: { name: 'Guest' },
-              created_at: new Date().toISOString(),
-            } as User;
-            commitAuthUser(fakeUser);
+            const savedUser = localStorage.getItem('sabeel_offline_user');
+            const parseResult = safeParseJsonResult<OfflineUser | null>(savedUser, null, (value) => value === null || isOfflineUser(value));
+            const parsed = parseResult.value;
+            if (parsed) {
+              const fakeUser = {
+                id: parsed.id, email: parsed.email || null,
+                aud: 'authenticated', role: 'authenticated',
+                app_metadata: {}, user_metadata: { name: parsed.name || 'Guest' },
+                created_at: parsed.created_at || new Date().toISOString(),
+              } as User;
+              commitAuthUser(fakeUser);
+            } else {
+              const newUserId = generateUUID();
+              const newUser = { id: newUserId, email: null, created_at: new Date().toISOString() };
+              // Do not overwrite a corrupt saved identity merely to recover startup.
+              if (savedUser === null) localStorage.setItem('sabeel_offline_user', JSON.stringify(newUser));
+              const fakeUser = {
+                id: newUserId, email: null, aud: 'authenticated', role: 'authenticated',
+                app_metadata: {}, user_metadata: { name: 'Guest' },
+                created_at: new Date().toISOString(),
+              } as User;
+              commitAuthUser(fakeUser);
+            }
           }
         } catch {
           const fakeUser = {
@@ -245,7 +253,9 @@ export function useAuth() {
 
   const signOut = async () => {
     if (!isSupabaseConfigured()) {
-      try { localStorage.removeItem('sabeel_offline_user'); } catch {}
+      if (!isLocalDemoRequested()) {
+        try { localStorage.removeItem('sabeel_offline_user'); } catch {}
+      }
       commitAuthUser(null);
       return;
     }

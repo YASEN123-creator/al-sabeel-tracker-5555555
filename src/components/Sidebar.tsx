@@ -92,6 +92,7 @@ export default function Sidebar({ onSignOut }: SidebarProps) {
   };
 
   const toggleLang = () => setLanguage(language === 'ar' ? 'en' : 'ar');
+  const originalDashboardStyle = activeView === 'dashboard';
   const slideX = isSidebarOpen ? 0 : 300;
   const animX = isRTL ? slideX : -slideX;
   const closeIcon = isRTL ? <ChevronRight size={17} /> : <ChevronLeft size={17} />;
@@ -120,17 +121,17 @@ export default function Sidebar({ onSignOut }: SidebarProps) {
         initial={false}
         animate={{ x: animX }}
         transition={{ type: 'spring', damping: 28, stiffness: 230 }}
-        className={`fixed top-0 z-50 flex h-full w-64 flex-col border-slate-200/90 bg-white/95 shadow-[0_0_40px_rgba(15,23,42,0.045)] backdrop-blur-xl dark:border-[#26334a] dark:bg-[#0d1422]/95 ${isRTL ? 'right-0 border-l' : 'left-0 border-r'}`}
+        className={`fixed top-0 z-50 flex h-full w-64 flex-col border-slate-200/90 bg-white/95 shadow-[0_0_40px_rgba(15,23,42,0.045)] backdrop-blur-xl ${originalDashboardStyle ? 'dark:border-[#26334a] dark:bg-[#0d1422]/95' : 'dark:border-[#3a455c] dark:bg-[#293246]/95'} ${isRTL ? 'right-0 border-l' : 'left-0 border-r'}`}
       >
         <div className="flex items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3">
-            <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-violet-600 to-fuchsia-500 text-lg font-black text-white shadow-lg shadow-violet-500/20">
+            <div className={`relative flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-black text-white ${originalDashboardStyle ? 'bg-gradient-to-br from-blue-500 via-violet-600 to-fuchsia-500 shadow-lg shadow-violet-500/20' : 'bg-violet-600'}`}>
               س
               <span className="absolute -bottom-1 -end-1 h-3 w-3 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-900" />
             </div>
             <div>
               <h1 className="text-base font-extrabold text-slate-900 dark:text-white">{t('nav.sabeel')}</h1>
-              <p className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">{t('nav.sabeelDesc')}</p>
+              <p className={`mt-0.5 ${originalDashboardStyle ? 'text-[10px] text-slate-400 dark:text-slate-500' : 'text-[11px] text-slate-500 dark:text-slate-400'}`}>{t('nav.sabeelDesc')}</p>
             </div>
           </div>
           <button onClick={toggleSidebar} className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200" aria-label={t('nav.closeMenu')}>
@@ -141,14 +142,14 @@ export default function Sidebar({ onSignOut }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto px-3 pb-3 [scrollbar-width:thin]">
           {groups.map((group, groupIndex) => (
             <div key={group.label} className={groupIndex === 0 ? '' : 'mt-3 border-t border-slate-100 pt-3 dark:border-slate-800'}>
-              <p className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{group.label}</p>
+              <p className={`mb-1.5 px-3 font-bold ${originalDashboardStyle ? 'text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500' : 'text-[11px] text-slate-500 dark:text-slate-400'}`}>{group.label}</p>
               <div className="space-y-1">
                 {group.items.map((item) => {
                   const active = activeView === item.id;
                   return (
-                    <button key={item.id} onClick={() => handleNavClick(item.id)} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${active ? 'bg-gradient-to-r from-violet-100 to-blue-50 text-violet-700 shadow-sm dark:from-violet-950/70 dark:to-blue-950/45 dark:text-violet-200' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}>
+                    <button key={item.id} onClick={() => handleNavClick(item.id)} aria-current={active ? 'page' : undefined} className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all ${originalDashboardStyle ? '' : 'min-h-10'} ${active ? (originalDashboardStyle ? 'bg-gradient-to-r from-violet-100 to-blue-50 text-violet-700 shadow-sm dark:from-violet-950/70 dark:to-blue-950/45 dark:text-violet-200' : 'bg-violet-100 text-violet-700 dark:bg-violet-950/70 dark:text-violet-200') : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'}`}>
                       {active && <span className={`absolute inset-y-2 w-1 rounded-full bg-violet-600 ${isRTL ? 'right-0' : 'left-0'}`} />}
-                      <span className={`transition-colors ${active ? 'text-violet-600 dark:text-violet-300' : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300'}`}>{item.icon}</span>
+                      <span className={originalDashboardStyle ? `transition-colors ${active ? 'text-violet-600 dark:text-violet-300' : 'text-slate-400 group-hover:text-slate-600 dark:text-slate-500 dark:group-hover:text-slate-300'}` : `grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors ${active ? 'bg-white text-violet-600 shadow-sm dark:bg-violet-900/60 dark:text-violet-200' : 'bg-slate-50 text-slate-500 group-hover:bg-white group-hover:text-violet-600 dark:bg-slate-700/45 dark:text-slate-400 dark:group-hover:bg-slate-700 dark:group-hover:text-violet-300'}`}>{item.icon}</span>
                       <span>{item.label}</span>
                     </button>
                   );

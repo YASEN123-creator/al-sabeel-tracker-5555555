@@ -19,7 +19,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col font-[Tajawal] bg-gray-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200">
+      <body className="min-h-full flex flex-col font-[Tajawal] bg-background text-foreground transition-colors duration-200">
         {children}
       </body>
     </html>

@@ -261,7 +261,7 @@ export default function Goals() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-4 pb-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-3"><Target size={29} className="text-violet-600" /><h1 className="text-3xl font-black text-slate-900 dark:text-white">{c.title}</h1></div><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{c.subtitle}</p></div><button onClick={openCreate} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-6 text-sm font-black text-white shadow-lg shadow-violet-500/20 transition hover:-translate-y-0.5 hover:shadow-xl"><Plus size={18} />{c.add}</button></header>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-3"><Target size={29} className="text-violet-600" /><h1 className="text-3xl font-black text-slate-900 dark:text-white">{c.title}</h1></div><p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{c.subtitle}</p></div><button onClick={openCreate} className="flex h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 text-sm font-black text-white transition hover:bg-violet-700 focus-visible:outline-2 focus-visible:outline-violet-300"><Plus size={18} />{c.add}</button></header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard icon={Clock3} color="blue" label={c.todayHours} value={(todayMinutes / 60).toFixed(1)} note={c.todayHoursHint} />

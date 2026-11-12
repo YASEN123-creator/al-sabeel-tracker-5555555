@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef, useSyncExternalStore } from 'react';
+import { ArrowUp } from 'lucide-react';
 import { useShallow } from '@/lib/useAppShallow';
 import { useAuth } from '@/lib/useAuth';
 import { useAppStore, withoutTrashedProjects } from '@/lib/store';
 import { useTimer } from '@/lib/useTimer';
 import { toLocalDateKey } from '@/lib/localDate';
+import { seedLocalDemoIfRequested } from '@/lib/demoData';
+import { isLocalDemoRequested, LOCAL_DEMO_MARKER, LOCAL_DEMO_USER_ID } from '@/lib/demoMode';
 import {
   fetchProjects, fetchTasks, fetchSessions,
   fetchGoals, fetchSettings, upsertSettings,
@@ -37,6 +40,7 @@ export default function HomePage() {
   const [authError, setAuthError] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
 
   const {
@@ -66,6 +70,17 @@ export default function HomePage() {
     }
   }, [darkMode]);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeView]);
+
+  useEffect(() => {
+    const update = () => setShowBackToTop(window.scrollY > 600);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
+
   // Timer persists across views (called here in page.tsx)
   useTimer();
 
@@ -79,6 +94,7 @@ export default function HomePage() {
     lastLoadedUserRef.current = userId;
 
     try {
+      await seedLocalDemoIfRequested(userId);
       let settingsData: Awaited<ReturnType<typeof fetchSettings>> = null;
       try {
         settingsData = await fetchSettings(userId);
@@ -379,15 +395,25 @@ export default function HomePage() {
   };
 
   const dir = language === 'en' ? 'ltr' : 'rtl';
+  let showDemoBadge = false;
+  if (hydrated && isLocalDemoRequested() && user.id === LOCAL_DEMO_USER_ID) {
+    try {
+      showDemoBadge = Boolean(localStorage.getItem(`${LOCAL_DEMO_MARKER}:${user.id}`));
+    } catch {
+      // Browser storage may be unavailable.
+    }
+  }
 
   return (
-    <div className="min-h-screen" dir={dir}>
+    <div className="min-h-screen" dir={dir} data-active-view={activeView}>
       <Toast />
       <Sidebar onSignOut={handleSignOut} />
       <GlobalActions />
-      <main className={`min-h-screen p-4 md:p-8 overflow-auto transition-all duration-300 ${isSidebarOpen ? (language === 'en' ? 'md:ml-64' : 'md:mr-64') : ''}`}>
-        <div className="mx-auto w-full max-w-[1680px]">
-          {renderView()}
+      {activeView !== 'dashboard' && showBackToTop && <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })} aria-label={language === 'ar' ? 'الرجوع لأعلى الصفحة' : 'Back to top'} title={language === 'ar' ? 'الرجوع لأعلى الصفحة' : 'Back to top'} className={`fixed bottom-24 z-30 hidden h-11 w-11 place-items-center rounded-xl border border-violet-200 bg-white/95 text-violet-700 shadow-[0_6px_20px_rgba(60,45,85,.1)] transition hover:-translate-y-0.5 hover:border-violet-300 hover:bg-violet-50 focus-visible:outline-2 focus-visible:outline-violet-500 dark:border-slate-600 dark:bg-slate-800 dark:text-violet-200 md:grid ${language === 'ar' ? 'left-5' : 'right-5'}`}><ArrowUp size={18} /></button>}
+      <main className={`${activeView === 'dashboard' ? 'min-h-screen overflow-auto bg-[#f8f9fa] p-4 transition-all duration-300 dark:bg-[#080d17] md:p-8' : 'sabeel-content min-h-screen overflow-auto p-4 pb-28 pt-16 transition-all duration-300 md:p-7 md:pb-28 xl:p-9'} ${isSidebarOpen ? (language === 'en' ? 'md:ml-64' : 'md:mr-64') : ''}`}>
+        <div className={`mx-auto w-full ${activeView === 'dashboard' ? 'max-w-[1680px]' : 'max-w-[1360px]'}`}>
+          {showDemoBadge && activeView !== 'dashboard' && <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-center text-xs font-semibold text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200">{language === 'ar' ? 'معاينة محلية ببيانات تجريبية' : 'Local preview with sample data'}</div>}
+          {activeView === 'dashboard' ? renderView() : <div key={activeView} className="sabeel-page-enter">{renderView()}</div>}
         </div>
       </main>
     </div>

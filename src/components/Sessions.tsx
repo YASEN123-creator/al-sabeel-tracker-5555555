@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, SkipForward, RotateCcw, Clock, Edit3, Trash2, X, Plus, Minus, CalendarDays, Search, Settings2, Activity, Trophy, Gauge, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Pause, SkipForward, RotateCcw, Clock, Edit3, Trash2, X, Plus, Minus, Search, Settings2, Activity, Trophy, Gauge, ChevronLeft, ChevronRight, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { useAppStore } from '@/lib/store';
 import { updateSession, deleteSession, upsertSettings, createSession } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -15,163 +15,25 @@ import ProjectPicker from '@/components/ProjectPicker';
 
 // ── Live Clock Component ─────────────────────────────────────────────────
 
-function LiveClock({ darkMode, lang }: { darkMode: boolean; lang: string }) {
-  const [timeParts, setTimeParts] = useState<{ hours: number; minutes: number; seconds: number; hours12: number; ampm: string; dateStr: string } | null>(null);
-  const isAr = lang === 'ar';
-  const TZ = 'Africa/Cairo';
-
+function LiveClock({ lang }: { lang: string }) {
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
-    function tick() {
-      const now = new Date();
-      // Force Africa/Cairo timezone for all calculations
-      const hours = parseInt(now.toLocaleString('en-US', { timeZone: TZ, hour: '2-digit', hour12: false }));
-      const minutes = parseInt(now.toLocaleString('en-US', { timeZone: TZ, minute: '2-digit' }));
-      const seconds = parseInt(now.toLocaleString('en-US', { timeZone: TZ, second: '2-digit' }));
-      const hours12 = hours % 12 || 12;
-      const ampm = hours >= 12 ? 'م' : 'ص';
-      const dateStr = now.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', {
-        timeZone: TZ,
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-      setTimeParts({ hours, minutes, seconds, hours12, ampm, dateStr });
-    }
-
+    const tick = () => setNow(new Date());
     tick();
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [isAr]);
-
-  if (!timeParts) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 h-52">
-        <div className="w-40 h-40 rounded-full border-4 border-gray-200 dark:border-slate-700 animate-pulse" />
-        <div className="flex gap-2">
-          <div className="w-16 h-8 bg-gray-100 dark:bg-slate-700 rounded-lg animate-pulse" />
-          <div className="w-10 h-8 bg-gray-100 dark:bg-slate-700 rounded-lg animate-pulse" />
-        </div>
-      </div>
-    );
-  }
-
-  const { minutes, seconds, hours12, ampm, dateStr } = timeParts;
-
-  // Analog clock angles
-  const secondAngle = seconds * 6;
-  const minuteAngle = minutes * 6 + seconds * 0.1;
-  const hourAngle = (hours12 * 30) + (minutes * 0.5);
-
-  const timeStr = `${String(hours12).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-  const secStr = String(seconds).padStart(2, '0');
-
-  const faceColor = darkMode ? '#1e293b' : '#ffffff';
-  const borderColor = darkMode ? '#334155' : '#e2e8f0';
-  const tickColor = darkMode ? '#475569' : '#cbd5e1';
-  const hourHandColor = darkMode ? '#e2e8f0' : '#1e293b';
-  const minuteHandColor = darkMode ? '#94a3b8' : '#475569';
-  const secondHandColor = '#3b82f6';
-  const centerDot = '#3b82f6';
-  const numberColor = darkMode ? '#94a3b8' : '#64748b';
-
-  return (
-    <div className="flex flex-col items-center gap-4">
-      {/* Analog Clock */}
-      <div className="relative w-40 h-40">
-        <svg viewBox="0 0 200 200" className="w-full h-full">
-          {/* Face */}
-          <circle cx="100" cy="100" r="95" fill={faceColor} stroke={borderColor} strokeWidth="2" />
-
-          {/* Outer ring accent */}
-          <circle cx="100" cy="100" r="95" fill="none" stroke={secondHandColor} strokeWidth="1.5" strokeDasharray="4 6" opacity="0.3" />
-
-          {/* Hour ticks */}
-          {Array.from({ length: 12 }).map((_, i) => {
-            const angle = i * 30;
-            const rad = (angle - 90) * (Math.PI / 180);
-            const x1 = 100 + 82 * Math.cos(rad);
-            const y1 = 100 + 82 * Math.sin(rad);
-            const x2 = 100 + 92 * Math.cos(rad);
-            const y2 = 100 + 92 * Math.sin(rad);
-            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={numberColor} strokeWidth="2" strokeLinecap="round" />;
-          })}
-
-          {/* Minute ticks */}
-          {Array.from({ length: 60 }).map((_, i) => {
-            if (i % 5 === 0) return null;
-            const angle = i * 6;
-            const rad = (angle - 90) * (Math.PI / 180);
-            const x1 = 100 + 87 * Math.cos(rad);
-            const y1 = 100 + 87 * Math.sin(rad);
-            const x2 = 100 + 92 * Math.cos(rad);
-            const y2 = 100 + 92 * Math.sin(rad);
-            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={tickColor} strokeWidth="1" strokeLinecap="round" />;
-          })}
-
-          {/* Hour numbers */}
-          {Array.from({ length: 12 }).map((_, i) => {
-            const num = i === 0 ? 12 : i;
-            const angle = (i * 30 - 90) * (Math.PI / 180);
-            const x = 100 + 70 * Math.cos(angle);
-            const y = 100 + 70 * Math.sin(angle);
-            return (
-              <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="central"
-                fill={numberColor} fontSize="13" fontWeight="600" fontFamily="Tajawal, sans-serif">
-                {num}
-              </text>
-            );
-          })}
-
-          {/* Hour hand */}
-          <line
-            x1="100" y1="100"
-            x2={100 + 45 * Math.cos((hourAngle - 90) * Math.PI / 180)}
-            y2={100 + 45 * Math.sin((hourAngle - 90) * Math.PI / 180)}
-            stroke={hourHandColor} strokeWidth="4" strokeLinecap="round"
-          />
-
-          {/* Minute hand */}
-          <line
-            x1="100" y1="100"
-            x2={100 + 60 * Math.cos((minuteAngle - 90) * Math.PI / 180)}
-            y2={100 + 60 * Math.sin((minuteAngle - 90) * Math.PI / 180)}
-            stroke={minuteHandColor} strokeWidth="3" strokeLinecap="round"
-          />
-
-          {/* Second hand */}
-          <line
-            x1={100 - 12 * Math.cos((secondAngle - 90) * Math.PI / 180)}
-            y1={100 - 12 * Math.sin((secondAngle - 90) * Math.PI / 180)}
-            x2={100 + 68 * Math.cos((secondAngle - 90) * Math.PI / 180)}
-            y2={100 + 68 * Math.sin((secondAngle - 90) * Math.PI / 180)}
-            stroke={secondHandColor} strokeWidth="1.5" strokeLinecap="round"
-          />
-
-          {/* Center dot */}
-          <circle cx="100" cy="100" r="4" fill={centerDot} />
-          <circle cx="100" cy="100" r="2" fill={faceColor} />
-        </svg>
-      </div>
-
-      {/* Digital Time */}
-      <div className="text-center">
-        <div className="flex items-baseline justify-center gap-1">
-          <span className="text-4xl font-bold text-slate-800 dark:text-slate-100 font-mono tracking-wider">
-            {timeStr}
-          </span>
-          <span className="text-lg font-medium text-blue-500 dark:text-blue-400 font-mono">{secStr}</span>
-          <span className="text-sm font-semibold text-gray-400 dark:text-gray-500 ml-1">{ampm}</span>
-        </div>
-        <div className="flex items-center justify-center gap-1.5 mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-          <CalendarDays size={12} />
-          <span>{dateStr}</span>
-        </div>
-      </div>
+  }, []);
+  if (!now) return <div className="h-40 w-full animate-pulse rounded-2xl bg-slate-800" />;
+  const time = now.toLocaleTimeString('en-US', { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit', hour12: true });
+  const weekday = now.toLocaleDateString('en-US', { timeZone: 'Africa/Cairo', weekday: 'long' });
+  const date = now.toLocaleDateString('en-GB', { timeZone: 'Africa/Cairo', day: '2-digit', month: '2-digit', year: 'numeric' }).replaceAll('/', '.');
+  return <div dir="ltr" className="w-full rounded-2xl bg-slate-900 px-5 py-6 text-center text-white shadow-[0_10px_26px_rgba(15,23,42,0.12)] dark:bg-slate-950">
+    <time dateTime={now.toISOString()} aria-label={lang === 'ar' ? `الوقت الآن ${time}` : `Current time ${time}`} className="block whitespace-nowrap font-sans text-4xl font-black tabular-nums tracking-wide sm:text-[2.7rem]">{time}</time>
+    <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/15 pt-3 text-xs font-semibold text-slate-200 sm:text-sm">
+      <span>{weekday}</span><span className="tabular-nums">{date}</span>
     </div>
-  );
+  </div>;
 }
-
 // ── Sessions Page ────────────────────────────────────────────────────────────
 
 export default function Sessions() {
@@ -180,7 +42,7 @@ export default function Sessions() {
     updateSession: updateSessionInStore, removeSession, addSession,
     timerState, timerSeconds,
     activeProjectId, setActiveProjectId, activeTaskId, setActiveTaskId,
-    setSettings, dataLoading, addToast, darkMode, language, setSessionPlan,
+    setSettings, dataLoading, addToast, language, setSessionPlan,
   } = useAppStore(useShallow((state) => ({
     sessions: state.sessions,
     projects: state.projects,
@@ -199,7 +61,6 @@ export default function Sessions() {
     setSettings: state.setSettings,
     dataLoading: state.dataLoading,
     addToast: state.addToast,
-    darkMode: state.darkMode,
     language: state.language,
     setSessionPlan: state.setSessionPlan,
   })));
@@ -229,6 +90,7 @@ export default function Sessions() {
   const [filterProject, setFilterProject] = useState<string>('all');
   const [filterTask, setFilterTask] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
   const [currentPage, setCurrentPage] = useState(1);
@@ -425,16 +287,21 @@ export default function Sessions() {
         <label className="relative block w-full lg:max-w-sm"><Search size={17} className="absolute end-3.5 top-1/2 -translate-y-1/2 text-slate-400" /><input value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} placeholder={c.search} className="h-11 w-full rounded-xl border border-slate-200 bg-white pe-10 ps-4 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-slate-700 dark:bg-slate-900" /></label>
       </header>
 
-      <div className="mb-5 grid gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 xl:grid-cols-4">
-        <select value={filterType} onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }} aria-label={c.allTypes} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="all">{c.allTypes}</option><option value="completed">{c.completed}</option><option value="active">{c.active}</option></select>
-        <select value={filterTask} onChange={(e) => { setFilterTask(e.target.value); setCurrentPage(1); }} aria-label={c.allTasks} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"><option value="all">{c.allTasks}</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select>
-        <ProjectPicker projects={projects} value={filterProject} onChange={(nextValue) => { setFilterProject(nextValue); setCurrentPage(1); }} language={lang} placeholder={t('sess.allProjects')} ariaLabel={t('sess.allProjects')} specialOption={{ value: 'all', label: t('sess.allProjects') }} className="h-11" />
-        <DateRangePicker value={dateRange} language={lang} onApply={(range) => { setDateRange(range); setCurrentPage(1); }} />
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <select value={filterType} onChange={(e) => { setFilterType(e.target.value); setCurrentPage(1); }} aria-label={c.allTypes} className="h-11 min-w-40 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 sm:max-w-56"><option value="all">{c.allTypes}</option><option value="completed">{c.completed}</option><option value="active">{c.active}</option></select>
+          <DateRangePicker value={dateRange} language={lang} onApply={(range) => { setDateRange(range); setCurrentPage(1); }} />
+          <button type="button" onClick={() => setAdvancedFiltersOpen((open) => !open)} aria-expanded={advancedFiltersOpen} aria-controls="session-filters" className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-xs font-bold transition ${advancedFiltersOpen ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/30 dark:text-violet-200' : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}><SlidersHorizontal size={16} />{lang === 'ar' ? 'خيارات إضافية' : 'More filters'}<ChevronDown size={14} className={`transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} /></button>
+        </div>
+        <div id="session-filters" className={`${advancedFiltersOpen ? 'grid' : 'hidden'} mt-3 gap-2.5 border-t border-slate-100 pt-3 dark:border-slate-800 sm:grid-cols-2`}>
+          <ProjectPicker projects={projects} value={filterProject} onChange={(nextValue) => { setFilterProject(nextValue); setCurrentPage(1); }} language={lang} placeholder={t('sess.allProjects')} ariaLabel={t('sess.allProjects')} specialOption={{ value: 'all', label: t('sess.allProjects') }} className="h-11" />
+          <select value={filterTask} onChange={(e) => { setFilterTask(e.target.value); setCurrentPage(1); }} aria-label={c.allTasks} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"><option value="all">{c.allTasks}</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select>
+        </div>
       </div>
 
-      <div className={`mb-5 grid gap-4 ${isPomodoroEnabled ? 'lg:grid-cols-[1.2fr_0.9fr_0.9fr]' : 'lg:grid-cols-2'}`}>
+      <div className={`mb-5 grid gap-4 ${isPomodoroEnabled ? 'lg:grid-cols-2 xl:grid-cols-[1.1fr_0.8fr_1fr]' : 'lg:grid-cols-2'}`}>
         {isPomodoroEnabled && <section className="rounded-2xl border border-blue-200 bg-white p-5 shadow-[0_5px_20px_rgba(37,99,235,0.06)] dark:border-blue-900 dark:bg-slate-900">
-          <div className="flex items-start justify-between"><div><h2 className="font-extrabold text-slate-900 dark:text-white">{c.timer}</h2><p className="mt-1 text-xs text-slate-400">{c.timerHint}</p></div><div className="flex gap-2"><button onClick={() => setShowTimerSettings((value) => !value)} aria-label={t('settings.title')} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:hover:bg-slate-800"><Settings2 size={18} /></button><button onClick={() => useAppStore.getState().resetTimer?.()} aria-label={t('sess.reset')} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:hover:bg-slate-800"><RotateCcw size={18} /></button></div></div>
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-extrabold text-slate-900 dark:text-white">{c.timer}</h2><p className="mt-1 text-xs text-slate-400">{c.timerHint}</p></div><div className="flex items-center gap-2"><button onClick={() => setShowTimerSettings((value) => !value)} aria-label={t('settings.title')} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:hover:bg-slate-800"><Settings2 size={18} /></button><button onClick={() => useAppStore.getState().resetTimer?.()} aria-label={t('sess.reset')} className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:hover:bg-slate-800"><RotateCcw size={18} /></button></div></div>
           <div className="py-5 text-center"><p className="font-mono text-5xl font-extrabold tracking-[0.08em] text-slate-900 dark:text-white">{formatTime(timerSeconds)}</p><span className="mt-3 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"><i className={`h-2 w-2 rounded-full ${timerState === 'running' ? 'animate-pulse bg-emerald-500' : timerState === 'paused' ? 'bg-amber-500' : 'bg-slate-400'}`} />{statusLabel}</span></div>
           <AnimatePresence>{showTimerSettings && <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4 overflow-hidden rounded-xl bg-slate-50 p-3 dark:bg-slate-950"><div className="flex flex-wrap justify-center gap-4"><div className="flex items-center gap-2"><button onClick={() => changeWorkDuration(-5)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Minus size={14} /></button><span className="text-xs font-bold">{t('sess.workDuration')} {workMin}</span><button onClick={() => changeWorkDuration(5)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Plus size={14} /></button></div><div className="flex items-center gap-2"><button onClick={() => changeBreakDuration(-1)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Minus size={14} /></button><span className="text-xs font-bold">{t('sess.breakDuration')} {breakMin}</span><button onClick={() => changeBreakDuration(1)} className="grid h-8 w-8 place-items-center rounded-lg bg-white dark:bg-slate-800"><Plus size={14} /></button></div></div></motion.div>}</AnimatePresence>
           <button onClick={() => timerState === 'running' || timerState === 'break' ? useAppStore.getState().pauseTimer?.() : timerState === 'paused' ? useAppStore.getState().resumeTimer?.() : useAppStore.getState().startTimer?.()} className="mx-auto flex h-11 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800 focus-visible:ring-4 focus-visible:ring-blue-500/25 dark:bg-blue-600">{timerState === 'running' || timerState === 'break' ? <Pause size={18} /> : <Play size={18} />}{timerState === 'running' || timerState === 'break' ? c.pause : timerState === 'paused' ? c.resume : c.start}</button>
@@ -442,9 +309,9 @@ export default function Sessions() {
           <div className="mt-3 flex justify-center gap-2"><button onClick={() => useAppStore.getState().skipTimer?.()} aria-label={t('sess.skip')} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><SkipForward size={16} /></button></div>
         </section>}
 
-        <section className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><h2 className="font-extrabold text-slate-900 dark:text-white">{c.currentTime}</h2><div className="flex flex-1 items-center justify-center py-3"><LiveClock darkMode={darkMode} lang={lang} /></div></section>
+        <section className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><h2 className="font-extrabold text-slate-900 dark:text-white">{c.currentTime}</h2><div className="flex flex-1 items-center justify-center py-4"><LiveClock lang={lang} /></div></section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><h2 className="font-extrabold text-slate-900 dark:text-white">{c.todaySummary}</h2><div className="mt-4 space-y-3">{[
+        <section className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${isPomodoroEnabled ? 'lg:col-span-2 xl:col-span-1' : ''}`}><h2 className="font-extrabold text-slate-900 dark:text-white">{c.todaySummary}</h2><div className="mt-4 space-y-3">{[
           { label: c.totalTime, value: formatDuration(todayMinutes), icon: Clock, tone: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300' },
           { label: c.sessionCount, value: String(todaySessions.length), icon: Activity, tone: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300' },
           { label: c.average, value: formatDuration(averageMinutes), icon: Gauge, tone: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300' },
@@ -456,8 +323,27 @@ export default function Sessions() {
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-center gap-3"><h2 className="text-lg font-extrabold text-slate-900 dark:text-white">{t('sess.history')}</h2><button onClick={openAddSession} className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white dark:bg-blue-600"><Plus size={16} />{t('sess.addSession')}</button></div><div className="flex flex-wrap gap-2"><button onClick={() => applyQuickRange('today')} className="h-9 rounded-xl border border-slate-200 px-3 text-xs font-bold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">{t('sess.today')}</button><button onClick={() => applyQuickRange('week')} className="h-9 rounded-xl border border-slate-200 px-3 text-xs font-bold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">{t('sess.thisWeek')}</button><button onClick={() => applyQuickRange('month')} className="h-9 rounded-xl border border-slate-200 px-3 text-xs font-bold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">{t('sess.thisMonth')}</button></div></div>
 
         {dataLoading ? <div className="p-5"><SkeletonChart /></div> : visibleSessions.length === 0 ? <div className="grid min-h-64 place-items-center p-8 text-center"><div><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/10"><Clock size={26} /></span><p className="mt-4 text-sm font-bold text-slate-600 dark:text-slate-300">{t('sess.noSessions')}</p><button onClick={openAddSession} className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white dark:bg-blue-600"><Plus size={16} />{t('sess.addSession')}</button></div></div> : <>
-          <div className="hidden overflow-x-auto lg:block"><table className="w-full min-w-[900px] text-start"><thead className="bg-slate-50 text-xs font-bold text-slate-500 dark:bg-slate-950 dark:text-slate-300"><tr><th className="px-5 py-3.5 text-start">{c.projectTask}</th><th className="px-4 py-3.5 text-start">{c.startTime}</th><th className="px-4 py-3.5 text-start">{c.endTime}</th><th className="px-4 py-3.5 text-start">{c.duration}</th><th className="px-4 py-3.5 text-start">{c.plannedDuration}</th><th className="px-4 py-3.5 text-start">{c.status}</th><th className="px-4 py-3.5 text-center">{c.actions}</th></tr></thead><tbody className="divide-y divide-slate-100 dark:divide-slate-800">{visibleSessions.map((session) => { const project = projects.find((item) => item.id === session.project_id); return <tr key={session.id} className="transition hover:bg-slate-50/70 dark:hover:bg-slate-800/50"><td className="px-5 py-3"><div className="flex items-center gap-3"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: project?.color || '#94a3b8' }} /><div><p className="text-sm font-bold text-slate-800 dark:text-slate-100">{projectName(session.project_id)}</p><p className="mt-0.5 text-xs text-slate-400">{taskName(session.task_id)}</p></div></div></td><td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300"><b className="block">{formatClockTime(session.start_time)}</b><span className="text-xs text-slate-400">{session.session_date}</span></td><td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">{formatClockTime(session.end_time)}</td><td className="px-4 py-3 text-sm font-extrabold text-slate-800 dark:text-slate-100">{formatDuration(session.duration)}</td><td className="px-4 py-3 text-sm font-bold text-slate-500 dark:text-slate-300">{sessionPlans[session.id] ? formatDuration(sessionPlans[session.id]) : '—'}</td><td className="px-4 py-3"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${session.end_time ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'}`}><i className={`h-1.5 w-1.5 rounded-full ${session.end_time ? 'bg-emerald-500' : 'animate-pulse bg-amber-500'}`} />{session.end_time ? c.completed : c.active}</span></td><td className="px-4 py-3"><div className="flex justify-center gap-1"><button onClick={() => openEditSession(session)} aria-label={c.edit} className="grid h-10 w-10 place-items-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-slate-800"><Edit3 size={16} /></button><button onClick={() => handleDeleteSession(session.id)} aria-label={c.remove} className="grid h-10 w-10 place-items-center rounded-xl text-red-400 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-red-500/10"><Trash2 size={16} /></button></div></td></tr>; })}</tbody></table></div>
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 lg:hidden">{visibleSessions.map((session) => <article key={session.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-slate-800 dark:text-slate-100">{projectName(session.project_id)}</p><p className="mt-1 text-xs text-slate-400">{taskName(session.task_id)}</p></div><span className={`rounded-lg px-2 py-1 text-xs font-bold ${session.end_time ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'}`}>{session.end_time ? c.completed : c.active}</span></div><div className="mt-3 grid grid-cols-2 gap-2 rounded-xl sm:grid-cols-4 bg-slate-50 p-3 text-center text-xs dark:bg-slate-950"><div><span className="block text-slate-400">{c.startTime}</span><b>{formatClockTime(session.start_time)}</b></div><div><span className="block text-slate-400">{c.endTime}</span><b>{formatClockTime(session.end_time)}</b></div><div><span className="block text-slate-400">{c.duration}</span><b>{formatDuration(session.duration)}</b></div><div><span className="block text-slate-400">{c.plannedDuration}</span><b>{sessionPlans[session.id] ? formatDuration(sessionPlans[session.id]) : '—'}</b></div></div><div className="mt-3 flex gap-2"><button onClick={() => openEditSession(session)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold dark:border-slate-700"><Edit3 size={15} />{c.edit}</button><button onClick={() => handleDeleteSession(session.id)} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-red-200 text-sm font-bold text-red-600 dark:border-red-900"><Trash2 size={15} />{c.remove}</button></div></article>)}</div>
+          <div className="space-y-3 bg-slate-50/50 p-3 dark:bg-slate-950/30 sm:p-4">
+            {visibleSessions.map((session) => {
+              const project = projects.find((item) => item.id === session.project_id);
+              const planned = sessionPlans[session.id] || 0;
+              return <article key={session.id} className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition hover:border-violet-200 hover:shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:hover:border-violet-700">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ backgroundColor: project?.color ? `${project.color}18` : '#eef2ff', color: project?.color || '#6366f1' }}><Clock size={17} /></span>
+                    <div className="min-w-0"><h3 className="truncate text-sm font-extrabold text-slate-900 dark:text-white">{projectName(session.project_id)}</h3><p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{taskName(session.task_id)}</p></div>
+                  </div>
+                  <div className="flex items-center gap-2"><span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold ${session.end_time ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'}`}><i className={`h-1.5 w-1.5 rounded-full ${session.end_time ? 'bg-emerald-500' : 'animate-pulse bg-amber-500'}`} />{session.end_time ? c.completed : c.active}</span><button onClick={() => openEditSession(session)} aria-label={c.edit} title={c.edit} className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500 dark:hover:bg-slate-800"><Edit3 size={16} /></button><button onClick={() => handleDeleteSession(session.id)} aria-label={c.remove} title={c.remove} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-red-500/10"><Trash2 size={16} /></button></div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 text-xs dark:border-slate-800 sm:grid-cols-4">
+                  <div><span className="block text-slate-400">{c.startTime}</span><b className="mt-1 block text-slate-700 dark:text-slate-200">{formatClockTime(session.start_time)}</b><span className="text-[11px] text-slate-400">{session.session_date}</span></div>
+                  <div><span className="block text-slate-400">{c.endTime}</span><b className="mt-1 block text-slate-700 dark:text-slate-200">{formatClockTime(session.end_time)}</b></div>
+                  <div><span className="block text-slate-400">{c.plannedDuration}</span><b className="mt-1 block text-slate-700 dark:text-slate-200">{planned ? formatDuration(planned) : '—'}</b></div>
+                  <div><span className="block text-slate-400">{c.duration}</span><b className="mt-1 block text-base font-extrabold text-violet-700 dark:text-violet-300">{formatDuration(session.duration)}</b></div>
+                </div>
+              </article>;
+            })}
+          </div>
           <footer className="flex flex-col gap-3 border-t border-slate-100 p-4 text-sm text-slate-500 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2"><select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="h-9 rounded-lg border border-slate-200 bg-white px-2 dark:border-slate-700 dark:bg-slate-950"><option value="5">5</option><option value="10">10</option><option value="20">20</option></select><span>{c.perPage}</span></div><div className="flex items-center gap-2"><span>{t('sess.showing')} {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredSessions.length)} {t('sess.of')} {filteredSessions.length}</span><button disabled={safePage === 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 disabled:opacity-35 dark:border-slate-700">{lang === 'ar' ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}</button><b className="grid h-9 min-w-9 place-items-center rounded-lg bg-slate-900 px-2 text-white dark:bg-blue-600">{safePage}</b><button disabled={safePage === totalPages} onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 disabled:opacity-35 dark:border-slate-700">{lang === 'ar' ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}</button></div></footer>
         </>}
       </section>

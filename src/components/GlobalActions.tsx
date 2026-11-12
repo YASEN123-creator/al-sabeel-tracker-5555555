@@ -46,12 +46,31 @@ export default function GlobalActions() {
   const toolbarRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; dx: number; dy: number } | null>(null);
   const [toolbarPosition, setToolbarPosition] = useState<{ x: number; y: number } | null>(null);
+  const [pageScrolled, setPageScrolled] = useState(false);
+  const addMenuAbove = toolbarPosition ? (typeof window !== 'undefined' && toolbarPosition.y > window.innerHeight / 2) : activeView !== 'dashboard';
+
+  useEffect(() => {
+    const update = () => setPageScrolled(window.scrollY > 240);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
+
+  useEffect(() => {
+    if (!addOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (event.target instanceof Node && !toolbarRef.current?.contains(event.target)) setAddOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick);
+  }, [addOpen]);
 
   useEffect(() => {
     if (!pictureWindow) return;
-    pictureWindow.document.documentElement.dir = ar ? 'rtl' : 'ltr';
-    pictureWindow.document.documentElement.classList.toggle('dark', darkMode);
-    pictureWindow.document.body.style.background = darkMode ? '#080d17' : '#f8fafc';
+    const popupDocument = pictureWindow.document;
+    popupDocument.documentElement.setAttribute('dir', ar ? 'rtl' : 'ltr');
+    popupDocument.documentElement.classList.toggle('dark', darkMode);
+    popupDocument.body.style.setProperty('background', darkMode ? '#1e2535' : '#fbfafd');
   }, [ar, darkMode, pictureWindow]);
 
   useEffect(() => {
@@ -220,9 +239,9 @@ export default function GlobalActions() {
 
   return (
     <>
-      <div ref={toolbarRef} style={toolbarPosition ? { left: toolbarPosition.x, top: toolbarPosition.y } : undefined} className={`fixed z-40 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-[0_18px_48px_rgba(15,23,42,.16)] dark:border-[#26334a] dark:bg-[#111a2a]/95 ${toolbarPosition ? '' : 'top-5 end-5'}`}>
-        <button type="button" onPointerDown={beginToolbarDrag} onPointerMove={moveToolbar} onPointerUp={endToolbarDrag} onPointerCancel={endToolbarDrag} className="global-action-button cursor-grab touch-none active:cursor-grabbing" aria-label={ar ? 'تحريك شريط الاختصارات' : 'Move shortcut toolbar'} title={ar ? 'اسحب لتحريك الشريط' : 'Drag to move'}><GripVertical size={18} /></button>
-        <button type="button" onClick={openPictureToolbar} className="global-action-button" aria-label={ar ? 'إبقاء الاختصارات فوق كل النوافذ' : 'Keep shortcuts above other windows'} title={ar ? 'خلي الشريط معك حتى تقفله' : 'Keep the bar with you until closed'}><PictureInPicture2 size={18} /></button>
+      <div ref={toolbarRef} style={toolbarPosition ? { left: toolbarPosition.x, top: toolbarPosition.y } : undefined} className={`global-toolbar fixed z-40 flex items-center rounded-2xl border border-slate-200 bg-white/95 transition-[opacity,box-shadow] duration-200 ${activeView === 'dashboard' ? 'gap-2 p-2 shadow-[0_18px_48px_rgba(15,23,42,.16)] dark:border-[#26334a] dark:bg-[#111a2a]/95' : 'gap-1.5 p-1.5 shadow-[0_10px_30px_rgba(15,23,42,.11)] dark:border-[#3a455c] dark:bg-[#293246]/95'} ${pageScrolled && activeView !== 'dashboard' ? 'global-toolbar-scrolled' : ''} ${toolbarPosition ? '' : activeView === 'dashboard' ? 'top-5 end-5' : ar ? 'bottom-5 left-5' : 'bottom-5 right-5'}`}>
+        <button type="button" onPointerDown={beginToolbarDrag} onPointerMove={moveToolbar} onPointerUp={endToolbarDrag} onPointerCancel={endToolbarDrag} className="global-action-button toolbar-desktop-control cursor-grab touch-none active:cursor-grabbing" aria-label={ar ? 'تحريك شريط الاختصارات' : 'Move shortcut toolbar'} title={ar ? 'اسحب لتحريك الشريط' : 'Drag to move'}><GripVertical size={18} /></button>
+        <button type="button" onClick={openPictureToolbar} className="global-action-button toolbar-desktop-control" aria-label={ar ? 'إبقاء الاختصارات فوق كل النوافذ' : 'Keep shortcuts above other windows'} title={ar ? 'خلي الشريط معك حتى تقفله' : 'Keep the bar with you until closed'}><PictureInPicture2 size={18} /></button>
         <button type="button" onClick={() => setSearchOpen(true)} className="global-action-button" aria-label={ar ? 'بحث شامل' : 'Global search'} title="Ctrl+K"><Search size={18} /></button>
         <button type="button" onClick={() => setReviewOpen(true)} className="global-action-button" aria-label={ar ? 'المراجعة الأسبوعية' : 'Weekly review'}><BarChart3 size={18} /></button>
         <button type="button" onClick={toggleTimer} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 font-mono text-sm font-black text-slate-800 transition hover:border-violet-300 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 dark:border-[#26334a] dark:text-white dark:hover:bg-[#18243a]" aria-label={ar ? 'التحكم في المؤقت' : 'Timer control'}>
@@ -230,9 +249,10 @@ export default function GlobalActions() {
           <span dir="ltr">{formatTimer(timerSeconds)}</span>
         </button>
         <div className="relative">
-          <button type="button" onClick={() => setAddOpen((open) => !open)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-600/20 transition hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2" aria-expanded={addOpen} aria-label={ar ? 'إضافة جديد' : 'Add new'}><Plus size={20} /></button>
-          {addOpen && <div className="absolute top-12 end-0 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-[#26334a] dark:bg-[#111a2a]">
-            {quickItems.map((item) => <button key={item.kind} type="button" onClick={() => openCreate(item.kind, item.view)} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-start text-sm font-bold text-slate-700 transition hover:bg-violet-50 hover:text-violet-700 dark:text-slate-200 dark:hover:bg-[#18243a] dark:hover:text-violet-300"><item.icon size={17} />{ar ? item.labelAr : item.labelEn}</button>)}
+          <button type="button" onClick={() => setAddOpen((open) => !open)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md shadow-violet-600/20 transition hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2" aria-expanded={addOpen} aria-label={ar ? 'إضافة جديد' : 'Add new'}><Plus size={20} className={`transition-transform ${addOpen ? 'rotate-45' : ''}`} /></button>
+          {addOpen && <div className={`absolute end-0 z-50 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_16px_40px_rgba(35,30,61,.16)] dark:border-[#3a455c] dark:bg-[#293246] ${addMenuAbove ? 'bottom-12' : 'top-12'}`}>
+            <p className="px-2 pb-1.5 pt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">{ar ? 'إضافة سريعة' : 'Quick add'}</p>
+            {quickItems.map((item) => <button key={item.kind} type="button" onClick={() => openCreate(item.kind, item.view)} className="flex min-h-11 w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start text-sm font-bold text-slate-700 transition hover:bg-violet-50 hover:text-violet-700 dark:text-slate-200 dark:hover:bg-[#354159] dark:hover:text-violet-200"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300"><item.icon size={16} /></span><span>{ar ? item.labelAr : item.labelEn}</span></button>)}
           </div>}
         </div>
       </div>

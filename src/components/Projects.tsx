@@ -384,7 +384,7 @@ export default function Projects() {
         <div><h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{c.title}</h1><p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{c.subtitle}</p></div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={openCreateFolder} className="flex items-center gap-2 rounded-xl border border-violet-100 bg-violet-50 px-3.5 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 dark:border-violet-500/20 dark:bg-violet-500/10 dark:text-violet-200"><Folder size={16} />{c.newFolder}</button>
-          <button type="button" onClick={() => openCreateProject(selectedFolderId)} className="flex items-center gap-2 rounded-xl bg-gradient-to-l from-violet-700 to-indigo-600 px-4 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.22)] transition hover:-translate-y-0.5"><Plus size={17} />{c.newProject}</button>
+          <button type="button" onClick={() => openCreateProject(selectedFolderId)} className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-violet-700 focus-visible:outline-2 focus-visible:outline-violet-300"><Plus size={17} />{c.newProject}</button>
         </div>
       </div>
 
