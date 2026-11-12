@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "السبيل - Sabeel | إدارة الوقت والإنتاجية",
   description: "نظام متكامل لإدارة الوقت وتتبع الإنتاجية والبومودورو",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
